@@ -1,15 +1,13 @@
-use std::collections::VecDeque;
 use clap::Parser;
 use log::LevelFilter;
+use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
 use std::process;
 use std::str::FromStr;
 
-/// 快照版版本号后缀
 static SNAPSHOT_SUFFIX: &str = "-SNAPSHOT";
 
-/// 需要扫描的文件后缀
-static SUFFIXIES: [&str;6] = [
+static SUFFIXIES: [&str; 6] = [
     ".jar",
     ".jar.sha1",
     ".pom",
@@ -18,13 +16,16 @@ static SUFFIXIES: [&str;6] = [
     ".war.sha1",
 ];
 
+static LOCAL_METADATA_FILE: &str = "maven-metadata-local.xml";
+
 fn main() {
     let args = Args::parse();
     let level_filter = LevelFilter::from_str(&args.level).expect("Invalid log level");
     simple_logger::SimpleLogger::new()
         .with_level(level_filter)
         .without_timestamps()
-        .init().expect("Failed to initialize logger");
+        .init()
+        .expect("Failed to initialize logger");
     let path = PathBuf::from(&args.path);
     if !path.exists() {
         log::error!("file or directory does not exist: {}", &args.path);
@@ -61,7 +62,10 @@ fn cleanup(repo_path: PathBuf) {
                         let entry_path = entry.path();
                         if entry_path.is_file() {
                             // 跳过非快照文件
-                            if folder_name.ends_with(SNAPSHOT_SUFFIX) {
+                            let entry_file_name = get_file_name(&entry_path).unwrap();
+                            if folder_name.ends_with(SNAPSHOT_SUFFIX)
+                                || entry_file_name.eq(LOCAL_METADATA_FILE)
+                            {
                                 queue.push_back(entry_path);
                             }
                         } else {
@@ -88,12 +92,20 @@ fn cleanup(repo_path: PathBuf) {
             let folder_name = folder_name.unwrap();
             let file_name = file_name.unwrap();
 
-            for suffix in SUFFIXIES {
-                if file_name.ends_with(suffix) && !file_name.contains(&folder_name) {
-                    log::info!("Deleting: {}", path.display());
-                    if let Err(e) = std::fs::remove_file(&path) {
-                        log::error!("Failed to delete file: {}", e);
-                        break;
+            if LOCAL_METADATA_FILE.eq(&file_name) {
+                log::info!("Deleting: {}", path.display());
+                if let Err(e) = std::fs::remove_file(&path) {
+                    log::error!("Failed to delete file '{}': {}", path.display(), e);
+                    break;
+                }
+            } else {
+                for suffix in SUFFIXIES {
+                    if file_name.ends_with(suffix) && !file_name.contains(&folder_name) {
+                        log::info!("Deleting: {}", path.display());
+                        if let Err(e) = std::fs::remove_file(&path) {
+                            log::error!("Failed to delete file '{}': {}", path.display(), e);
+                            break;
+                        }
                     }
                 }
             }
@@ -104,17 +116,14 @@ fn cleanup(repo_path: PathBuf) {
 fn get_file_name(path: &Path) -> Option<String> {
     match path.file_name() {
         None => None,
-        Some(folder_name) =>
-            folder_name.to_str().map(|folder_name| folder_name.to_string())
+        Some(folder_name) => folder_name
+            .to_str()
+            .map(|folder_name| folder_name.to_string()),
     }
 }
 
 #[derive(Parser, Debug)]
-#[command(
-    author = "arsiac",
-    version = "0.1.0",
-    about = "Clean Maven Repository"
-)]
+#[command(author = "arsiac", version = "0.1.0", about = "Clean Maven Repository")]
 pub struct Args {
     path: String,
 

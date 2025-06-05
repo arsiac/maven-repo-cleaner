@@ -116,15 +116,8 @@ fn cleanup(repo_path: PathBuf) {
         }
     }
 
-    if deleted_size > 1024 {
-        log::info!("Deleted size: {} KiB", deleted_size / 1024);
-    } else if deleted_size > 1024 * 1024 {
-        log::info!("Deleted size: {} MiB", deleted_size / (1024 * 1024));
-    } else if deleted_size > 1024 * 1024 * 1024 {
-        log::info!("Deleted size: {} GiB", deleted_size / (1024 * 1024 * 1024));
-    } else {
-        log::info!("Deleted size: {} B", deleted_size);
-    }
+    let size_text = format_size(deleted_size);
+    log::info!("Deleted size: {}", &size_text);
 }
 
 fn get_file_name(path: &Path) -> Option<String> {
@@ -133,6 +126,15 @@ fn get_file_name(path: &Path) -> Option<String> {
         Some(folder_name) => folder_name
             .to_str()
             .map(|folder_name| folder_name.to_string()),
+    }
+}
+
+fn format_size(size: usize) -> String {
+    match size {
+        s if s >= 1024 * 1024 * 1024 => format!("{:.2} GiB", s as f64 / (1024.0 * 1024.0 * 1024.0)),
+        s if s >= 1024 * 1024 => format!("{:.2} MiB", s as f64 / (1024.0 * 1024.0)),
+        s if s >= 1024 => format!("{:.2} KiB", s as f64 / 1024.0),
+        s => format!("{} B", s),
     }
 }
 

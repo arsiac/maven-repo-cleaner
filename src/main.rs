@@ -41,6 +41,7 @@ fn main() {
 }
 
 fn cleanup(repo_path: PathBuf) {
+    let mut deleted_size: usize = 0;
     let mut queue = VecDeque::new();
     queue.push_back(repo_path);
     while let Some(path) = queue.pop_front() {
@@ -102,6 +103,9 @@ fn cleanup(repo_path: PathBuf) {
                 for suffix in SUFFIXIES {
                     if file_name.ends_with(suffix) && !file_name.contains(&folder_name) {
                         log::info!("Deleting: {}", path.display());
+                        deleted_size += std::fs::metadata(&path)
+                            .map(|metadata| metadata.len() as usize)
+                            .unwrap_or(0);
                         if let Err(e) = std::fs::remove_file(&path) {
                             log::error!("Failed to delete file '{}': {}", path.display(), e);
                             break;
@@ -110,6 +114,16 @@ fn cleanup(repo_path: PathBuf) {
                 }
             }
         }
+    }
+
+    if deleted_size > 1024 {
+        log::info!("Deleted size: {} KiB", deleted_size / 1024);
+    } else if deleted_size > 1024 * 1024 {
+        log::info!("Deleted size: {} MiB", deleted_size / (1024 * 1024));
+    } else if deleted_size > 1024 * 1024 * 1024 {
+        log::info!("Deleted size: {} GiB", deleted_size / (1024 * 1024 * 1024));
+    } else {
+        log::info!("Deleted size: {} B", deleted_size);
     }
 }
 
